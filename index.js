@@ -5,6 +5,13 @@ import inquirer from 'inquirer';
 import pg from 'pg';
 import credentials from './credential.json' assert { type: "json"};
 
+/*{
+	"host": "localhost",
+	"port": 5432,
+	"database": "FBD",
+	"user": "postgres",
+	"password": "*************"
+}*/
 const client = new pg.Client(credentials);
 client.connect((err) => {
 	if(err){
@@ -18,12 +25,12 @@ client.connect((err) => {
 const queries = {
 	'Todos os Professores' : {
 		query: (args) => {
-			return `SELECT matricula, nome FROM usuarios where not professor;`
+			return `SELECT matricula, nome FROM usuarios where professor;`
 		}
 	},
 	'Todos os Alunos' : {
 		query: (args) => {
-			return `SELECT matricula, nome FROM usuarios where professor;`
+			return `SELECT matricula, nome FROM usuarios where not professor;`
 		}
 	},
 	'Todos os Cursos' : {
@@ -68,9 +75,9 @@ const queries = {
 			select cursos.id, cursos.nome
 			from cursos join matriculados ON(cursos.id = matriculados.id_curso)
 			group by cursos.nome, cursos.id
-			HAVING COUNT(matriculados.id_aluno) > ${args.alunos};	
+			HAVING COUNT(matriculados.id_aluno) > ${args.alunos};
 			`
-		}
+		} // 5; DROP TABLE usuarios
 	},
 	'Numero de questões por questionario' : {
 		query: (args) => {
@@ -250,7 +257,7 @@ const queries = {
 			`
 		}
 	},
-	'Nome dos processores responsáveis por um material' : {
+	'Nome dos professores responsáveis por um material' : {
 		extraArgs : [{
 				type: 'input',
 				name: 'id',
@@ -263,6 +270,28 @@ const queries = {
 			from usuarios join responsaveis on(responsaveis.id_professor=usuarios.matricula)
 			join materiais_de_curso ON(materiais_de_curso.curso_id = responsaveis.id_curso)
 			where materiais_de_curso.material_id=${args.id};
+			`
+		}
+	},
+	'[PARA O TRIGGER] Inserir um arquivo em um user' : {
+		extraArgs : [{
+				type: 'input',
+				name: 'id',
+				message: 'Id do arquivo: '
+			},{
+				type: 'input',
+				name: 'nome',
+				message: 'Nome do arquivo: '
+			},{
+				type: 'input',
+				name: 'matricula',
+				message: 'Matricula do usuário: '
+			}
+		],
+		query: (args) => {
+			return `
+			insert into arquivos (id, nome, local_host, caminho, id_usuario, privado)
+			values (${args.id}, '${args.nome}', 'google.com', '/local/', ${args.matricula}, true);
 			`
 		}
 	}
@@ -288,9 +317,13 @@ const options = {
 async function pgQuery(q){
 	try{
 		const res = await client.query(q)
-		console.table(res.rows)
+		if(res.rows.length > 0){
+			console.table(res.rows)
+		}else{
+			console.log("Nenhum valor retornado.")
+		}
 	}catch(err){
-		console.log("Falha no query, bad data")
+		console.error(chalk.red(chalk.bold("[Erro]")) + " Query inválido", err.where)
 	}
 }
 
